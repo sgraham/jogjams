@@ -757,50 +757,30 @@ std::string ReadContentPropertiesBulk(
         }
     }
 
-    if (SUCCEEDED(hr))
-    {
-        // 5) Populate the IPortableDeviceKeyCollection with the keys we wish to read.
-        // NOTE: We are not handling any special error cases here so we can proceed with
-        // adding as many of the target properties as we can.
+    if (SUCCEEDED(hr)) {
+        // 5) Populate the IPortableDeviceKeyCollection with the keys we wish to
+        // read. NOTE: We are not handling any special error cases here so we
+        // can proceed with adding as many of the target properties as we can.
+
         HRESULT tempHr = S_OK;
-        tempHr = propertiesToRead->Add(WPD_OBJECT_PARENT_ID);
-        if (FAILED(tempHr))
-        {
-            fwprintf(stderr, L"! Failed to add WPD_OBJECT_PARENT_ID to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-        }
 
-        tempHr = propertiesToRead->Add(WPD_OBJECT_NAME);
-        if (FAILED(tempHr))
-        {
-            fwprintf(stderr, L"! Failed to add WPD_OBJECT_NAME to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-        }
+#define ADD(prop)                                             \
+  tempHr = propertiesToRead->Add(prop);                       \
+  if (FAILED(tempHr)) {                                       \
+    fwprintf(stderr,                                          \
+             L"! Failed to add " L#prop                       \
+             " to IPortableDeviceKeyCollection, hr= 0x%lx\n", \
+             tempHr);                                         \
+  }
 
-        
-        tempHr = propertiesToRead->Add(WPD_OBJECT_ORIGINAL_FILE_NAME);
-        if (FAILED(tempHr)) {
-            fwprintf(stderr, 
-                L"! Failed to add WPD_OBJECT_ORIGINAL_FILE_NAME to "
-                L"IPortableDeviceKeyCollection, hr= 0x%lx\n",
-                tempHr);
-        }
-  
-        tempHr = propertiesToRead->Add(WPD_OBJECT_PERSISTENT_UNIQUE_ID);
-        if (FAILED(tempHr))
-        {
-            fwprintf(stderr, L"! Failed to add WPD_OBJECT_PERSISTENT_UNIQUE_ID to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-        }
+        ADD(WPD_OBJECT_PARENT_ID);
+        ADD(WPD_OBJECT_NAME);
+        ADD(WPD_OBJECT_ORIGINAL_FILE_NAME);
+        ADD(WPD_OBJECT_PERSISTENT_UNIQUE_ID);
+        ADD(WPD_OBJECT_FORMAT);
+        ADD(WPD_OBJECT_CONTENT_TYPE);
 
-        tempHr = propertiesToRead->Add(WPD_OBJECT_FORMAT);
-        if (FAILED(tempHr))
-        {
-            fwprintf(stderr, L"! Failed to add WPD_OBJECT_FORMAT to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-        }
-
-        tempHr = propertiesToRead->Add(WPD_OBJECT_CONTENT_TYPE);
-        if (FAILED(tempHr))
-        {
-            fwprintf(stderr, L"! Failed to add WPD_OBJECT_CONTENT_TYPE to IPortableDeviceKeyCollection, hr= 0x%lx\n", tempHr);
-        }
+#undef ADD
     }
 
     // 6) Create an instance of the IPortableDevicePropertiesBulkCallback object.

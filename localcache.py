@@ -35,7 +35,7 @@ class TrackInfo:
         if error_code != 0:
             self.local_file_name = None
             return False
-        self.local_file_name = os.path.join(CACHEDIR, self.id + '.mp3')
+        self.local_file_name = os.path.join(CACHEDIR, 'music', self.id + '.mp3')
         return True
 
 

@@ -1,53 +1,31 @@
 ## v1
-- only supports YTM and Garmin
-- attach watch by USB
-- paste playlist url
-- background watch for WPD MTP device popping up
-- probably just make it a separate exe because py ext is going to be pain
-  - sit in loop, comm over stdin/stdout
 
-
-- mtphelper is flickering the cursor like crazy
-  - open pipe and send commands maybe? :/
-
-
-- yt_dlp:
-  - get info for playlist on paste in background
-  - then download songs as just cache/id.ext
-
-  {
-    playlists: {
-      "https://playlist?url": {
-        [
-          5JeArVBC56s,   
-          HHKXKH34GAE,
-          ...
-        ]
-      },
-    }
-    tracks: {
-      5JeArVBC56s: {
-        "name": "Sweat",
-      },
-      HHKXKH34GAE: {
-        "name": "Hush",
-      },
-    },
-  }
-
-  - on user sync, copy and rename to "%(index)03d - %(name)s.mp3"
-
-
-- jogjams.key by email for payment
-- pyupdater
+- delete button
+- sync button
+- better progress dialogs
 - pyinstaller
-- jogjams.com/api/check-update posts key/log if any, and returns to update URL
-- windowed packaging nicely
-- all exceptions, etc to logging
+- pyupdater
+  - jogjams.com/api/check-update with version/key/log and returns update if any
+- no consoles
+- redirect all logs
+- rip obvious junk out of wpd-mtp-hlper
+- find users
+- ERRORs from yt_dlp are a bit janky, probably just wrap generically and log
+- cache to USERAPPDIR or wherever it's supposed to be
+- suggestion urls when no valid url
 
 ## v2
 
-log in to ytm to select playlists nicely?
+- jogjams.key by email for payment
+- log into ytm to select playlists more nicely than c&p
+- save recent playlists (just name+url in list?)
+- jogjams.key by email for payment
+
+## v-future
+
+- watch app for wireless sync
+- coros support
+- other service support
 
 
 

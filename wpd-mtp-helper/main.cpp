@@ -20,17 +20,17 @@ void ReadHintLocations(_In_ IPortableDevice* device);
 
 // Content transfer
 void TransferContentFromDevice(_In_ IPortableDevice* device);
-void TransferContentToDevice(
-    _In_ IPortableDevice* device,
-    _In_ REFGUID          contentType,
-    _In_ PCWSTR           fileTypeFilter,
-    _In_ PCWSTR           defaultFileExtension);
-void TransferContactToDevice(_In_ IPortableDevice* device);
+std::string TransferContentToDevice(_In_ IPortableDevice* device,
+                                    _In_ const std::string& parent_id,
+                                    _In_ const std::string& local_file_name,
+                                    _In_ const std::string& target_title);
+void TransferContactToDevice(_In_ IPortableDevice*
+                                                          device);
 void CreateFolderOnDevice(_In_ IPortableDevice* device);
 void CreateContactPhotoResourceOnDevice(_In_ IPortableDevice* device);
 
 // Content deletion
-void DeleteContentFromDevice(_In_ IPortableDevice* device);
+std::string DeleteContentFromDevice(_In_ IPortableDevice* device, std::string object_name);
 
 // Content moving
 void MoveContentAlreadyOnDevice(_In_ IPortableDevice* device);
@@ -63,15 +63,41 @@ void UnregisterForEventNotifications(_In_opt_ IPortableDevice* device, _In_opt_ 
 // Misc.
 void GetObjectIdentifierFromPersistentUniqueIdentifier(_In_ IPortableDevice* device);
 
-std::string GetBulkProperties(std::string device_id) {
+std::string GetBulkProperties(const std::string& device_id) {
   ComPtr<IPortableDevice> device;
     
   ChooseDevice(device_id, &device);
 
   if (!device) {
-    return "{}";
+    return "{\"status\":-1}";
   } else {
     return ReadContentPropertiesBulk(device.Get());
+  }
+}
+
+std::string DoDeleteObject(const std::string& device_id,
+                           const std::string& object_name) {
+  ComPtr<IPortableDevice> device;
+
+  ChooseDevice(device_id, &device);
+
+  if (!device) {
+    return "{\"status\":-1}";
+  } else {
+    return DeleteContentFromDevice(device.Get(), object_name);
+  }
+}
+
+std::string DoSendFile(const std::string& device_id,
+                           const std::string& parent_name, const std::string& local_file_name, const std::string& target_title) {
+  ComPtr<IPortableDevice> device;
+
+  ChooseDevice(device_id, &device);
+
+  if (!device) {
+    return "{\"status\":-1}";
+  } else {
+    return TransferContentToDevice(device.Get(), parent_name, local_file_name, target_title);
   }
 }
 
@@ -89,6 +115,41 @@ void DoServerLoop() {
             auto device_id = req.path_params.at("id");
             res.set_content(GetBulkProperties(device_id), "application/json");
   });
+
+  svr.Post("/delete-object/:id", [&](const httplib::Request& req,
+                                     httplib::Response& res) {
+    auto device_id = req.path_params.at("id");
+    if (!req.has_param("objectid")) {
+      res.status = 500;
+      return;
+    }
+    std::string object = req.get_param_value("objectid");
+
+    res.set_content(DoDeleteObject(device_id, object), "application/json");
+  });
+
+  svr.Post("/send-file/:id", [&](const httplib::Request& req,
+                                     httplib::Response& res) {
+    auto device_id = req.path_params.at("id");
+    if (!req.has_param("parentid")) {
+      res.status = 500;
+      return;
+    }
+    if (!req.has_param("localfilename")) {
+      res.status = 500;
+      return;
+    }
+    if (!req.has_param("targettitle")) {
+      res.status = 500;
+      return;
+    }
+    std::string parent = req.get_param_value("parentid");
+    std::string localfilename = req.get_param_value("localfilename");
+    std::string targettitle = req.get_param_value("targettitle");
+
+    res.set_content(DoSendFile(device_id, parent, localfilename, targettitle), "application/json");
+  });
+
 
 #ifdef _DEBUG
   int port = 1072;
@@ -185,12 +246,13 @@ void DoCommandLoop()
                 case 3:
                     TransferContentFromDevice(device.Get());
                     break;
-                case 4:
+                /*case 4:
                     DeleteContentFromDevice(device.Get());
-                    break;
+                    break;*/
                 case 5:
                     MoveContentAlreadyOnDevice(device.Get());
                     break;
+                    /*
                 case 6:
                     TransferContentToDevice(device.Get(),
                                             WPD_CONTENT_TYPE_IMAGE,
@@ -209,6 +271,7 @@ void DoCommandLoop()
                                             L"VCARD (*.VCF)\0*.VCF\0\0",
                                             L"VCF");
                     break;
+                    */
                 case 9:
                     TransferContactToDevice(device.Get());
                     break;

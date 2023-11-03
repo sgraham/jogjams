@@ -292,228 +292,269 @@ void TransferContentFromDevice(
 
 // Deletes a selected object from the device.
 //<SnippetDeleteContent1>
-void DeleteContentFromDevice(
-    _In_ IPortableDevice* device)
-{
-    HRESULT                                       hr = S_OK;
-    WCHAR                                         selection[SELECTION_BUFFER_SIZE] = {0};
-    ComPtr<IPortableDeviceContent>                content;
-    ComPtr<IPortableDevicePropVariantCollection>  objectsToDelete;
-    ComPtr<IPortableDevicePropVariantCollection>  objectsFailedToDelete;
+std::string DeleteContentFromDevice(_In_ IPortableDevice* device,
+                             std::string object_name) {
+    HRESULT hr = S_OK;
+    ComPtr<IPortableDeviceContent> content;
+    ComPtr<IPortableDevicePropVariantCollection> objectsToDelete;
+    int status = -1;
 
-    // Prompt user to enter an object identifier on the device to delete.
-    fwprintf(stderr, L"Enter the identifier of the object you wish to delete.\n>");
-    hr = StringCchGetsW(selection, ARRAYSIZE(selection));
-    if (FAILED(hr))
-    {
-        fwprintf(stderr, L"An invalid object identifier was specified, aborting content deletion\n");
-    }
+    std::wstring obj_wide = utf8_to_wide(object_name);
 
-    // 1) get an IPortableDeviceContent interface from the IPortableDevice interface to
-    // access the content-specific methods.
-    if (SUCCEEDED(hr))
-    {
+    // 1) get an IPortableDeviceContent interface from the IPortableDevice
+    // interface to access the content-specific methods.
+    if (SUCCEEDED(hr)) {
         hr = device->Content(&content);
-        if (FAILED(hr))
-        {
-            fwprintf(stderr, L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
+        if (FAILED(hr)) {
+            fwprintf(stderr,
+                     L"! Failed to get IPortableDeviceContent from "
+                     L"IPortableDevice, hr = 0x%lx\n",
+                     hr);
         }
     }
 
-    // 2) CoCreate an IPortableDevicePropVariantCollection interface to hold the the object identifiers
-    // to delete.
+    // 2) CoCreate an IPortableDevicePropVariantCollection interface to hold the
+    // the object identifiers to delete.
     //
-    // NOTE: This is a collection interface so more than 1 object can be deleted at a time.
+    // NOTE: This is a collection interface so more than 1 object can be deleted
+    // at a time.
     //       This sample only deletes a single object.
-    if (SUCCEEDED(hr))
-    {
+    if (SUCCEEDED(hr)) {
         hr = CoCreateInstance(CLSID_PortableDevicePropVariantCollection,
-                              nullptr,
-                              CLSCTX_INPROC_SERVER,
+                              nullptr, CLSCTX_INPROC_SERVER,
                               IID_PPV_ARGS(&objectsToDelete));
-        if (SUCCEEDED(hr))
-        {
-            // Initialize a PROPVARIANT structure with the object identifier string
-            // that the user selected above. Notice we are allocating memory for the
-            // PWSTR value.  This memory will be freed when PropVariantClear() is
-            // called below.
+        if (SUCCEEDED(hr)) {
+            // Initialize a PROPVARIANT structure with the object identifier
+            // string that the user selected above. Notice we are allocating
+            // memory for the PWSTR value.  This memory will be freed when
+            // PropVariantClear() is called below.
             PROPVARIANT pv = {0};
-            hr = InitPropVariantFromString(selection, &pv);
-            if (SUCCEEDED(hr))
-            {
+            hr = InitPropVariantFromString(obj_wide.c_str(), &pv);
+            if (SUCCEEDED(hr)) {
                 // Add the object identifier to the objects-to-delete list
                 // (We are only deleting 1 in this example)
                 hr = objectsToDelete->Add(&pv);
-                if (SUCCEEDED(hr))
-                {
+                if (SUCCEEDED(hr)) {
                     // Attempt to delete the object from the device
-                    hr = content->Delete(PORTABLE_DEVICE_DELETE_NO_RECURSION,   // Deleting with no recursion
-                                            objectsToDelete.Get(),                 // Object(s) to delete
-                                            nullptr);                              // Object(s) that failed to delete (we are only deleting 1, so we can pass nullptr here)
-                    if (SUCCEEDED(hr))
-                    {
-                        // An S_OK return lets the caller know that the deletion was successful
-                        if (hr == S_OK)
-                        {
-                            fwprintf(stderr, L"The object '%ws' was deleted from the device.\n", selection);
+                    hr = content->Delete(
+                        PORTABLE_DEVICE_DELETE_NO_RECURSION,  // Deleting with
+                                                              // no recursion
+                        objectsToDelete.Get(),  // Object(s) to delete
+                        nullptr);  // Object(s) that failed to delete (we are
+                                   // only deleting 1, so we can pass nullptr
+                                   // here)
+                    if (SUCCEEDED(hr)) {
+                        // An S_OK return lets the caller know that the deletion
+                        // was successful
+                        if (hr == S_OK) {
+                          fwprintf(stderr,
+                                   L"The object '%ws' was deleted from the "
+                                   L"device.\n",
+                                   obj_wide.c_str());
+                          status = 0;
                         }
 
-                        // An S_FALSE return lets the caller know that the deletion failed.
-                        // The caller should check the returned IPortableDevicePropVariantCollection
-                        // for a list of object identifiers that failed to be deleted.
-                        else
-                        {
-                            fwprintf(stderr, L"The object '%ws' failed to be deleted from the device.\n", selection);
+                        // An S_FALSE return lets the caller know that the
+                        // deletion failed. The caller should check the returned
+                        // IPortableDevicePropVariantCollection for a list of
+                        // object identifiers that failed to be deleted.
+                        else {
+                          fwprintf(stderr,
+                                   L"The object '%ws' failed to be deleted "
+                                   L"from the device.\n",
+                                   obj_wide.c_str());
+                          status = 1;
                         }
+                    } else {
+                        fwprintf(stderr,
+                                 L"! Failed to delete an object from the "
+                                 L"device, hr = 0x%lx\n",
+                                 hr);
+                        status = 2;
                     }
-                    else
-                    {
-                        fwprintf(stderr, L"! Failed to delete an object from the device, hr = 0x%lx\n", hr);
-                    }
+                } else {
+                    fwprintf(
+                        stderr,
+                        L"! Failed to delete an object from the device because "
+                        L"we could no add the object identifier string to the "
+                        L"IPortableDevicePropVariantCollection, hr = 0x%lx\n",
+                        hr);
+                    status = 3;
                 }
-                else
-                {
-                    fwprintf(stderr, L"! Failed to delete an object from the device because we could no add the object identifier string to the IPortableDevicePropVariantCollection, hr = 0x%lx\n", hr);
-                }
-            }
-            else
-            {
+            } else {
                 hr = E_OUTOFMEMORY;
-                fwprintf(stderr, L"! Failed to delete an object from the device because we could no allocate memory for the object identifier string, hr = 0x%lx\n", hr);
+                fwprintf(stderr,
+                         L"! Failed to delete an object from the device "
+                         L"because we could no allocate memory for the object "
+                         L"identifier string, hr = 0x%lx\n",
+                         hr);
+                status = 4;
             }
 
             // Free any allocated values in the PROPVARIANT before exiting
             PropVariantClear(&pv);
+        } else {
+            fwprintf(
+                stderr,
+                L"! Failed to delete an object from the device because we were "
+                L"returned a nullptr IPortableDevicePropVariantCollection "
+                L"interface pointer, hr = 0x%lx\n",
+                hr);
+            status = 5;
         }
-        else
-        {
-            fwprintf(stderr, L"! Failed to delete an object from the device because we were returned a nullptr IPortableDevicePropVariantCollection interface pointer, hr = 0x%lx\n", hr);
-        }
+    } else {
+        fwprintf(stderr,
+                 L"! Failed to CoCreateInstance "
+                 L"CLSID_PortableDevicePropVariantCollection, hr = 0x%lx\n",
+                 hr);
+        status = 6;
     }
-    else
-    {
-        fwprintf(stderr, L"! Failed to CoCreateInstance CLSID_PortableDevicePropVariantCollection, hr = 0x%lx\n", hr);
-    }
+
+    return "{\"status\":" + int_to_str(status) + "}";
 }
 //</SnippetDeleteContent1>
-// Moves a selected object (which is already on the device) to another location on the device.
-void MoveContentAlreadyOnDevice(
-    _In_ IPortableDevice* device)
-{
-    HRESULT                                       hr = S_OK;
-    WCHAR                                         selection[SELECTION_BUFFER_SIZE]                 = {0};
-    WCHAR                                         destinationFolderObjectID[SELECTION_BUFFER_SIZE] = {0};
-    ComPtr<IPortableDeviceContent>                content;
-    ComPtr<IPortableDevicePropVariantCollection>  objectsToMove;
-    ComPtr<IPortableDevicePropVariantCollection>  objectsFailedToMove;
+// Moves a selected object (which is already on the device) to another location
+// on the device.
+void MoveContentAlreadyOnDevice(_In_ IPortableDevice* device) {
+    HRESULT hr = S_OK;
+    WCHAR selection[SELECTION_BUFFER_SIZE] = {0};
+    WCHAR destinationFolderObjectID[SELECTION_BUFFER_SIZE] = {0};
+    ComPtr<IPortableDeviceContent> content;
+    ComPtr<IPortableDevicePropVariantCollection> objectsToMove;
+    ComPtr<IPortableDevicePropVariantCollection> objectsFailedToMove;
 
-    // Check if the device supports the move command needed to perform this operation
-    if (SupportsCommand(device, WPD_COMMAND_OBJECT_MANAGEMENT_MOVE_OBJECTS) == FALSE)
-    {
-        fwprintf(stderr, L"! This device does not support the move operation (i.e. The WPD_COMMAND_OBJECT_MANAGEMENT_MOVE_OBJECTS command)\n");
+    // Check if the device supports the move command needed to perform this
+    // operation
+    if (SupportsCommand(device, WPD_COMMAND_OBJECT_MANAGEMENT_MOVE_OBJECTS) ==
+        FALSE) {
+        fwprintf(stderr,
+                 L"! This device does not support the move operation (i.e. The "
+                 L"WPD_COMMAND_OBJECT_MANAGEMENT_MOVE_OBJECTS command)\n");
         return;
     }
 
     // Prompt user to enter an object identifier on the device to move.
-    fwprintf(stderr, L"Enter the identifier of the object you wish to move.\n>");
+    fwprintf(stderr,
+             L"Enter the identifier of the object you wish to move.\n>");
     hr = StringCchGetsW(selection, ARRAYSIZE(selection));
-    if (FAILED(hr))
-    {
-        fwprintf(stderr, L"An invalid object identifier was specified, aborting content moving\n");
+    if (FAILED(hr)) {
+        fwprintf(stderr,
+                 L"An invalid object identifier was specified, aborting "
+                 L"content moving\n");
     }
 
     // Prompt user to enter an object identifier on the device to move.
-    fwprintf(stderr, L"Enter the identifier of the object you wish to move '%ws' to.\n>", selection);
-    hr = StringCchGetsW(destinationFolderObjectID, ARRAYSIZE(destinationFolderObjectID));
-    if (FAILED(hr))
-    {
-        fwprintf(stderr, L"An invalid object identifier was specified, aborting content moving\n");
+    fwprintf(
+        stderr,
+        L"Enter the identifier of the object you wish to move '%ws' to.\n>",
+        selection);
+    hr = StringCchGetsW(destinationFolderObjectID,
+                        ARRAYSIZE(destinationFolderObjectID));
+    if (FAILED(hr)) {
+        fwprintf(stderr,
+                 L"An invalid object identifier was specified, aborting "
+                 L"content moving\n");
     }
 
-    // 1) get an IPortableDeviceContent interface from the IPortableDevice interface to
-    // access the content-specific methods.
-    if (SUCCEEDED(hr))
-    {
+    // 1) get an IPortableDeviceContent interface from the IPortableDevice
+    // interface to access the content-specific methods.
+    if (SUCCEEDED(hr)) {
         hr = device->Content(&content);
-        if (FAILED(hr))
-        {
-            fwprintf(stderr, L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
+        if (FAILED(hr)) {
+            fwprintf(stderr,
+                     L"! Failed to get IPortableDeviceContent from "
+                     L"IPortableDevice, hr = 0x%lx\n",
+                     hr);
         }
     }
 
-    // 2) CoCreate an IPortableDevicePropVariantCollection interface to hold the the object identifiers
-    // to move.
+    // 2) CoCreate an IPortableDevicePropVariantCollection interface to hold the
+    // the object identifiers to move.
     //
-    // NOTE: This is a collection interface so more than 1 object can be moved at a time.
+    // NOTE: This is a collection interface so more than 1 object can be moved
+    // at a time.
     //       This sample only moves a single object.
-    if (SUCCEEDED(hr))
-    {
+    if (SUCCEEDED(hr)) {
         hr = CoCreateInstance(CLSID_PortableDevicePropVariantCollection,
-                              nullptr,
-                              CLSCTX_INPROC_SERVER,
+                              nullptr, CLSCTX_INPROC_SERVER,
                               IID_PPV_ARGS(&objectsToMove));
-        if (SUCCEEDED(hr))
-        {
-            // Initialize a PROPVARIANT structure with the object identifier string
-            // that the user selected above. Notice we are allocating memory for the
-            // PWSTR value.  This memory will be freed when PropVariantClear() is
-            // called below.
+        if (SUCCEEDED(hr)) {
+            // Initialize a PROPVARIANT structure with the object identifier
+            // string that the user selected above. Notice we are allocating
+            // memory for the PWSTR value.  This memory will be freed when
+            // PropVariantClear() is called below.
             PROPVARIANT pv = {0};
             hr = InitPropVariantFromString(selection, &pv);
-            if (SUCCEEDED(hr))
-            {
+            if (SUCCEEDED(hr)) {
                 // Add the object identifier to the objects-to-move list
                 // (We are only moving 1 in this example)
                 hr = objectsToMove->Add(&pv);
-                if (SUCCEEDED(hr))
-                {
+                if (SUCCEEDED(hr)) {
                     // Attempt to move the object on the device
-                    hr = content->Move(objectsToMove.Get(),       // Object(s) to move
-                                        destinationFolderObjectID, // Folder to move to
-                                        nullptr);                  // Object(s) that failed to delete (we are only moving 1, so we can pass nullptr here)
-                    if (SUCCEEDED(hr))
-                    {
-                        // An S_OK return lets the caller know that the deletion was successful
-                        if (hr == S_OK)
-                        {
-                            fwprintf(stderr, L"The object '%ws' was moved on the device.\n", selection);
+                    hr = content->Move(
+                        objectsToMove.Get(),        // Object(s) to move
+                        destinationFolderObjectID,  // Folder to move to
+                        nullptr);  // Object(s) that failed to delete (we are
+                                   // only moving 1, so we can pass nullptr
+                                   // here)
+                    if (SUCCEEDED(hr)) {
+                        // An S_OK return lets the caller know that the deletion
+                        // was successful
+                        if (hr == S_OK) {
+                          fwprintf(
+                              stderr,
+                              L"The object '%ws' was moved on the device.\n",
+                              selection);
                         }
 
-                        // An S_FALSE return lets the caller know that the move failed.
-                        // The caller should check the returned IPortableDevicePropVariantCollection
-                        // for a list of object identifiers that failed to be moved.
-                        else
-                        {
-                            fwprintf(stderr, L"The object '%ws' failed to be moved on the device.\n", selection);
+                        // An S_FALSE return lets the caller know that the move
+                        // failed. The caller should check the returned
+                        // IPortableDevicePropVariantCollection for a list of
+                        // object identifiers that failed to be moved.
+                        else {
+                          fwprintf(stderr,
+                                   L"The object '%ws' failed to be moved on "
+                                   L"the device.\n",
+                                   selection);
                         }
+                    } else {
+                        fwprintf(stderr,
+                                 L"! Failed to move an object on the device, "
+                                 L"hr = 0x%lx\n",
+                                 hr);
                     }
-                    else
-                    {
-                        fwprintf(stderr, L"! Failed to move an object on the device, hr = 0x%lx\n", hr);
-                    }
+                } else {
+                    fwprintf(
+                        stderr,
+                        L"! Failed to move an object on the device because we "
+                        L"could no add the object identifier string to the "
+                        L"IPortableDevicePropVariantCollection, hr = 0x%lx\n",
+                        hr);
                 }
-                else
-                {
-                    fwprintf(stderr, L"! Failed to move an object on the device because we could no add the object identifier string to the IPortableDevicePropVariantCollection, hr = 0x%lx\n", hr);
-                }
-            }
-            else
-            {
+            } else {
                 hr = E_OUTOFMEMORY;
-                fwprintf(stderr, L"! Failed to move an object on the device because we could no allocate memory for the object identifier string, hr = 0x%lx\n", hr);
+                fwprintf(stderr,
+                         L"! Failed to move an object on the device because we "
+                         L"could no allocate memory for the object identifier "
+                         L"string, hr = 0x%lx\n",
+                         hr);
             }
 
             // Free any allocated values in the PROPVARIANT before exiting
             PropVariantClear(&pv);
+        } else {
+            fwprintf(
+                stderr,
+                L"! Failed to move an object from the device because we were "
+                L"returned a nullptr IPortableDevicePropVariantCollection "
+                L"interface pointer, hr = 0x%lx\n",
+                hr);
         }
-        else
-        {
-            fwprintf(stderr, L"! Failed to move an object from the device because we were returned a nullptr IPortableDevicePropVariantCollection interface pointer, hr = 0x%lx\n", hr);
-        }
-    }
-    else
-    {
-        fwprintf(stderr, L"! Failed to CoCreateInstance CLSID_PortableDevicePropVariantCollection, hr = 0x%lx\n", hr);
+    } else {
+        fwprintf(stderr,
+                 L"! Failed to CoCreateInstance "
+                 L"CLSID_PortableDevicePropVariantCollection, hr = 0x%lx\n",
+                 hr);
     }
 }
 
@@ -521,7 +562,7 @@ void MoveContentAlreadyOnDevice(
 HRESULT GetRequiredPropertiesForAllContentTypes(
     _In_ IPortableDeviceValues*  objectProperties,
     _In_ PCWSTR                  parentObjectID,
-    _In_ PCWSTR                  filePath,
+    _In_ PCWSTR                  filePathNice,
     _In_ IStream*                fileStream)
 {
     // Set the WPD_OBJECT_PARENT_ID
@@ -557,7 +598,7 @@ HRESULT GetRequiredPropertiesForAllContentTypes(
         // into a separate filename.
         WCHAR fileName[MAX_PATH] = {0};
         WCHAR fileExt[MAX_PATH]  = {0};
-        if (_wsplitpath_s(filePath, nullptr, 0, nullptr, 0,
+        if (_wsplitpath_s(filePathNice, nullptr, 0, nullptr, 0,
                           fileName,ARRAYSIZE(fileName),
                           fileExt, ARRAYSIZE(fileExt)))
         {
@@ -679,7 +720,7 @@ HRESULT GetRequiredPropertiesForContactContentTypes(
 HRESULT GetRequiredPropertiesForContentType(
     _In_         REFGUID                 contentType,
     _In_         PCWSTR                  parentObjectID,
-    _In_         PCWSTR                  filePath,
+    _In_         PCWSTR                  filePathNice,
     _In_         IStream*                fileStream,
     _COM_Outptr_ IPortableDeviceValues** objectProperties)
 {
@@ -698,7 +739,7 @@ HRESULT GetRequiredPropertiesForContentType(
             // Fill out required properties for ALL content types
             hr = GetRequiredPropertiesForAllContentTypes(objectPropertiesTemp.Get(),
                                                          parentObjectID,
-                                                         filePath,
+                                                         filePathNice,
                                                          fileStream);
             if (SUCCEEDED(hr))
             {
@@ -740,203 +781,204 @@ HRESULT GetRequiredPropertiesForContentType(
 }
 
 // Transfers a user selected file to the device
-void TransferContentToDevice(
-    _In_ IPortableDevice* device,
-    _In_ REFGUID          contentType,
-    _In_ PCWSTR           fileTypeFilter,
-    _In_ PCWSTR           defaultFileExtension)
-{
+std::string TransferContentToDevice(_In_ IPortableDevice* device,
+                                    _In_ const std::string& parent_id,
+                                    _In_ const std::string& local_file_name,
+                                    _In_ const std::string& target_title) {
     //<SnippetContentTransfer1>
-    HRESULT                             hr                       = S_OK;
-    WCHAR                               filePath[MAX_PATH]       = {0};
-    DWORD                               optimalTransferSizeBytes = 0;
-    WCHAR                               selection[SELECTION_BUFFER_SIZE] = {0};
-    ComPtr<IStream>                     fileStream;
-    ComPtr<IPortableDeviceDataStream>   finalObjectDataStream;
-    ComPtr<IPortableDeviceValues>       finalObjectProperties;
-    ComPtr<IPortableDeviceContent>      content;
-    ComPtr<IStream>                     tempStream;  // Temporary IStream which we use to QI for IPortableDeviceDataStream
+    HRESULT hr = S_OK;
+    DWORD optimalTransferSizeBytes = 0;
+    ComPtr<IStream> fileStream;
+    ComPtr<IPortableDeviceDataStream> finalObjectDataStream;
+    ComPtr<IPortableDeviceValues> finalObjectProperties;
+    ComPtr<IPortableDeviceContent> content;
+    ComPtr<IStream> tempStream;  // Temporary IStream which we use to QI for
+                                 // IPortableDeviceDataStream
+    int status = -1;
 
-    // Prompt user to enter an object identifier for the parent object on the device to transfer.
-    fwprintf(stderr, L"Enter the identifier of the parent object which the file will be transferred under.\n>");
-    hr = StringCchGetsW(selection, ARRAYSIZE(selection));
-    if (FAILED(hr))
-    {
-        fwprintf(stderr, L"An invalid object identifier was specified, aborting content transfer\n");
-    }
+    REFGUID contentType = WPD_CONTENT_TYPE_AUDIO;
+    std::wstring parent_wide = utf8_to_wide(parent_id);
+    std::wstring local_file_wide = utf8_to_wide(local_file_name);
+    std::wstring target_title_wide = utf8_to_wide(target_title);
+
     //</SnippetContentTransfer1>
-    // 1) Get an IPortableDeviceContent interface from the IPortableDevice interface to
-    // access the content-specific methods.
+    // 1) Get an IPortableDeviceContent interface from the IPortableDevice
+    // interface to access the content-specific methods.
     //<SnippetContentTransfer2>
-    if (SUCCEEDED(hr))
-    {
+    if (SUCCEEDED(hr)) {
         hr = device->Content(&content);
-        if (FAILED(hr))
-        {
-            fwprintf(stderr, L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
+        if (FAILED(hr)) {
+            fwprintf(stderr,
+                     L"! Failed to get IPortableDeviceContent from "
+                     L"IPortableDevice, hr = 0x%lx\n",
+                     hr);
+            status = 1;
         }
     }
-    //</SnippetContentTransfer2>
-    // 2) Present the user with a File Open dialog.  Our sample is
-    // restricting the types to user-specified forms.
-    //<SnippetContentTransfer3>
-    if (SUCCEEDED(hr))
-    {
-        OPENFILENAME openFileNameInfo   = {0};
 
-        openFileNameInfo.lStructSize    = sizeof(OPENFILENAME);
-        openFileNameInfo.hwndOwner      = nullptr;
-        openFileNameInfo.lpstrFile      = filePath;
-        openFileNameInfo.nMaxFile       = ARRAYSIZE(filePath);
-        openFileNameInfo.lpstrFilter    = fileTypeFilter;
-        openFileNameInfo.nFilterIndex   = 1;
-        openFileNameInfo.Flags          = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-        openFileNameInfo.lpstrDefExt    = defaultFileExtension;
-
-        if (GetOpenFileName(&openFileNameInfo) == FALSE)
-        {
-            fwprintf(stderr, L"The transfer operation was cancelled.\n");
-            hr = E_ABORT;
-        }
-    }
-    //</SnippetContentTransfer3>
-
-    // 3) Open the image file and add required properties about the file being transferred
-    //<SnippetContentTransfer4>
-
-    if (SUCCEEDED(hr))
-    {
+    if (SUCCEEDED(hr)) {
         // Open the selected file as an IStream.  This will simplify reading the
         // data and writing to the device.
-        hr = SHCreateStreamOnFileEx(filePath, STGM_READ, FILE_ATTRIBUTE_NORMAL, FALSE, nullptr, &fileStream);
-        if (SUCCEEDED(hr))
-        {
-            // Get the required properties needed to properly describe the data being
-            // transferred to the device.
-            hr = GetRequiredPropertiesForContentType(contentType,              // Content type of the data
-                                                     selection,                // Parent to transfer the data under
-                                                     filePath,                 // Full file path to the data file
-                                                     fileStream.Get(),         // Open IStream that contains the data
-                                                     &finalObjectProperties);  // Returned properties describing the data
-            if (FAILED(hr))
-            {
-                fwprintf(stderr, L"! Failed to get required properties needed to transfer a file to the device, hr = 0x%lx\n", hr);
+        hr = SHCreateStreamOnFileEx(local_file_wide.c_str(), STGM_READ,
+                                    FILE_ATTRIBUTE_NORMAL, FALSE, nullptr,
+                                    &fileStream);
+        if (SUCCEEDED(hr)) {
+            // Get the required properties needed to properly describe the data
+            // being transferred to the device.
+            hr = GetRequiredPropertiesForContentType(
+                contentType,              // Content type of the data
+                parent_wide.c_str(),      // Parent to transfer the data under
+                target_title_wide.c_str(),  // Full file path to the data file
+                fileStream.Get(),         // Open IStream that contains the data
+                &finalObjectProperties);  // Returned properties describing the
+                                          // data
+            if (FAILED(hr)) {
+                fwprintf(stderr,
+                         L"! Failed to get required properties needed to "
+                         L"transfer a file to the device, hr = 0x%lx\n",
+                         hr);
+                status = 2;
             }
         }
 
-        if (FAILED(hr))
-        {
-            fwprintf(stderr, L"! Failed to open file named (%ws) to transfer to device, hr = 0x%lx\n", filePath, hr);
+        if (FAILED(hr)) {
+            fwprintf(stderr,
+                     L"! Failed to open file named (%ws) to transfer to "
+                     L"device, hr = 0x%lx\n",
+                     local_file_wide.c_str(), hr);
+            status = 3;
         }
     }
     //</SnippetContentTransfer4>
     //<SnippetContentTransfer5>
     // 4) Transfer for the content to the device
-    if (SUCCEEDED(hr))
-    {
-        hr = content->CreateObjectWithPropertiesAndData(finalObjectProperties.Get(),    // Properties describing the object data
-                                                        &tempStream,                    // Returned object data stream (to transfer the data to)
-                                                        &optimalTransferSizeBytes,      // Returned optimal buffer size to use during transfer
-                                                        nullptr);
+    if (SUCCEEDED(hr)) {
+        hr = content->CreateObjectWithPropertiesAndData(
+            finalObjectProperties
+                .Get(),   // Properties describing the object data
+            &tempStream,  // Returned object data stream (to transfer the data
+                          // to)
+            &optimalTransferSizeBytes,  // Returned optimal buffer size to use
+                                        // during transfer
+            nullptr);
 
-        // Once we have a the IStream returned from CreateObjectWithPropertiesAndData,
-        // QI for IPortableDeviceDataStream so we can use the additional methods
-        // to get more information about the object (i.e. The newly created object
-        // identifier on the device)
-        if (SUCCEEDED(hr))
-        {
+        // Once we have a the IStream returned from
+        // CreateObjectWithPropertiesAndData, QI for IPortableDeviceDataStream
+        // so we can use the additional methods to get more information about
+        // the object (i.e. The newly created object identifier on the device)
+        if (SUCCEEDED(hr)) {
             hr = tempStream.As(&finalObjectDataStream);
-            if (FAILED(hr))
-            {
-                fwprintf(stderr, L"! Failed to QueryInterface for IPortableDeviceDataStream, hr = 0x%lx\n", hr);
+            if (FAILED(hr)) {
+                fwprintf(stderr,
+                         L"! Failed to QueryInterface for "
+                         L"IPortableDeviceDataStream, hr = 0x%lx\n",
+                         hr);
+                status = 4;
             }
         }
 
         // Since we have IStream-compatible interfaces, call our helper function
-        // that copies the contents of a source stream into a destination stream.
-        if (SUCCEEDED(hr))
-        {
+        // that copies the contents of a source stream into a destination
+        // stream.
+        if (SUCCEEDED(hr)) {
             DWORD totalBytesWritten = 0;
 
-            hr = StreamCopy(finalObjectDataStream.Get(),    // Destination (The Object to transfer to)
-                            fileStream.Get(),               // Source (The File data to transfer from)
-                            optimalTransferSizeBytes,       // The driver specified optimal transfer buffer size
-                            &totalBytesWritten);            // The total number of bytes transferred from file to the device
-            if (FAILED(hr))
-            {
-                fwprintf(stderr, L"! Failed to transfer object to device, hr = 0x%lx\n", hr);
+            hr = StreamCopy(
+                finalObjectDataStream
+                    .Get(),        // Destination (The Object to transfer to)
+                fileStream.Get(),  // Source (The File data to transfer from)
+                optimalTransferSizeBytes,  // The driver specified optimal
+                                           // transfer buffer size
+                &totalBytesWritten);  // The total number of bytes transferred
+                                      // from file to the device
+            if (FAILED(hr)) {
+                fwprintf(stderr,
+                         L"! Failed to transfer object to device, hr = 0x%lx\n",
+                         hr);
+                status = 5;
             }
-        }
-        else
-        {
-            fwprintf(stderr, L"! Failed to get IStream (representing destination object data on the device) from IPortableDeviceContent, hr = 0x%lx\n", hr);
+        } else {
+            fwprintf(stderr,
+                     L"! Failed to get IStream (representing destination "
+                     L"object data on the device) from IPortableDeviceContent, "
+                     L"hr = 0x%lx\n",
+                     hr);
+            status = 6;
         }
 
-        // After transferring content to the device, the client is responsible for letting the
-        // driver know that the transfer is complete by calling the Commit() method
-        // on the IPortableDeviceDataStream interface.
-        if (SUCCEEDED(hr))
-        {
+        // After transferring content to the device, the client is responsible
+        // for letting the driver know that the transfer is complete by calling
+        // the Commit() method on the IPortableDeviceDataStream interface.
+        if (SUCCEEDED(hr)) {
             hr = finalObjectDataStream->Commit(STGC_DEFAULT);
-            if (FAILED(hr))
-            {
-                fwprintf(stderr, L"! Failed to commit object to device, hr = 0x%lx\n", hr);
+            if (FAILED(hr)) {
+                fwprintf(stderr,
+                         L"! Failed to commit object to device, hr = 0x%lx\n",
+                         hr);
             }
+            status = 7;
         }
 
-        // Some clients may want to know the object identifier of the newly created
-        // object.  This is done by calling GetObjectID() method on the
+        // Some clients may want to know the object identifier of the newly
+        // created object.  This is done by calling GetObjectID() method on the
         // IPortableDeviceDataStream interface.
-        if (SUCCEEDED(hr))
-        {
+        if (SUCCEEDED(hr)) {
             PWSTR newlyCreatedObject = nullptr;
             hr = finalObjectDataStream->GetObjectID(&newlyCreatedObject);
-            if (SUCCEEDED(hr))
-            {
-                fwprintf(stderr, L"The file '%ws' was transferred to the device.\nThe newly created object's ID is '%ws'\n", filePath, newlyCreatedObject);
-            }
-            else
-            {
-                fwprintf(stderr, L"! Failed to get the newly transferred object's identifier from the device, hr = 0x%lx\n", hr);
+            if (SUCCEEDED(hr)) {
+                fwprintf(stderr,
+                         L"The file '%ws' was transferred to the device.\nThe "
+                         L"newly created object's ID is '%ws'\n",
+                         local_file_wide.c_str(), newlyCreatedObject);
+                status = 8;
+            } else {
+                fwprintf(stderr,
+                         L"! Failed to get the newly transferred object's "
+                         L"identifier from the device, hr = 0x%lx\n",
+                         hr);
+                status = 9;
             }
 
-            // Free the object identifier string returned from the GetObjectID() method.
+            // Free the object identifier string returned from the GetObjectID()
+            // method.
             CoTaskMemFree(newlyCreatedObject);
             newlyCreatedObject = nullptr;
         }
     }
     //</SnippetContentTransfer5>
+    return "{\"status\":" + int_to_str(status) + "}";
 }
 
-// Transfers a user selected file to the device as a new WPD_RESOURCE_CONTACT_PHOTO resource
-void CreateContactPhotoResourceOnDevice(
-    _In_ IPortableDevice* device)
-{
-    HRESULT                             hr                               = S_OK;
-    DWORD                               optimalTransferSizeBytes         = 0;
-    WCHAR                               filePath[MAX_PATH]               = {0};
-    WCHAR                               selection[SELECTION_BUFFER_SIZE] = {0};
-    ComPtr<IStream>                     fileStream;
-    ComPtr<IStream>                     resourceStream;
-    ComPtr<IPortableDeviceValues>       resourceAttributes;
-    ComPtr<IPortableDeviceContent>      content;
-    ComPtr<IPortableDeviceResources>    resources;
+// Transfers a user selected file to the device as a new
+// WPD_RESOURCE_CONTACT_PHOTO resource
+void CreateContactPhotoResourceOnDevice(_In_ IPortableDevice* device) {
+    HRESULT hr = S_OK;
+    DWORD optimalTransferSizeBytes = 0;
+    WCHAR filePath[MAX_PATH] = {0};
+    WCHAR selection[SELECTION_BUFFER_SIZE] = {0};
+    ComPtr<IStream> fileStream;
+    ComPtr<IStream> resourceStream;
+    ComPtr<IPortableDeviceValues> resourceAttributes;
+    ComPtr<IPortableDeviceContent> content;
+    ComPtr<IPortableDeviceResources> resources;
 
-    // Prompt user to enter an object identifier for the object to which we will add a Resource.
-    fwprintf(stderr, L"Enter the identifier of the object to which we will add a photograph.\n>");
+    // Prompt user to enter an object identifier for the object to which we will
+    // add a Resource.
+    fwprintf(stderr,
+             L"Enter the identifier of the object to which we will add a "
+             L"photograph.\n>");
     hr = StringCchGetsW(selection, ARRAYSIZE(selection));
-    if (FAILED(hr))
-    {
-        fwprintf(stderr, L"An invalid object identifier was specified, aborting resource creation\n");
+    if (FAILED(hr)) {
+        fwprintf(stderr,
+                 L"An invalid object identifier was specified, aborting "
+                 L"resource creation\n");
     }
 
-    // 1) Get an IPortableDeviceContent interface from the IPortableDevice interface to
-    // access the content-specific methods.
-    if (SUCCEEDED(hr))
-    {
+    // 1) Get an IPortableDeviceContent interface from the IPortableDevice
+    // interface to access the content-specific methods.
+    if (SUCCEEDED(hr)) {
         hr = device->Content(&content);
-        if (FAILED(hr))
-        {
+        if (FAILED(hr)) {
             fwprintf(stderr, L"! Failed to get IPortableDeviceContent from IPortableDevice, hr = 0x%lx\n", hr);
         }
     }

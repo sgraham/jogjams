@@ -7,16 +7,17 @@ import os
 SELFDIR = os.path.abspath(os.path.dirname(__file__))
 CACHEDIR = os.path.join(SELFDIR, 'cache')  # TODO: USERAPPDATA or something
 
-import localcache
 import json
+import localcache
 import os
 import pprint
+import re
 import subprocess
 import threading
 import time
 import urllib.request
-import yt_dlp
 import wx
+import yt_dlp
 
 WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT = '{99ED0160-17FF-4C44-9D98-1D7A6F941921}'
 WPD_CONTENT_TYPE_FOLDER = '{27E2E392-A111-48E0-AB0C-E17705A05F85}'
@@ -146,6 +147,8 @@ class MainFrame(wx.Frame):
         self.have_playlist = False
         self.have_watch = False
         self.extra_message = ''
+        self.devid_q = None
+        self.devindex = -1
 
         self.proc = None
         self.ensure_daemon_running()
@@ -168,7 +171,8 @@ class MainFrame(wx.Frame):
         self.playlist_url = wx.TextCtrl(lhs)
         lsizer.Add(self.playlist_url, wx.SizerFlags().Border(wx.LEFT | wx.RIGHT).Expand())
         self.playlist_url.SetValue(
-            'https://music.youtube.com/playlist?list=OLAK5uy_l-ZRBmH_xVHk7t1JJgadh41JDyTONLzjE'
+            'https://music.youtube.com/playlist?list=RDCLAK5uy_m2DbXGr69B7FSL6LqEHjdEFsxTmghY4Qw'  # Running Tracks
+            #'https://music.youtube.com/playlist?list=OLAK5uy_l-ZRBmH_xVHk7t1JJgadh41JDyTONLzjE' # Southpaw
             #'https://music.youtube.com/playlist?list=OLAK5uy_lLTN5rDT7EE5e7FuJEtkum7V-y4ATo3mM'
         )
         self.playlist_url.Bind(wx.EVT_SET_FOCUS, self.highlight_url)
@@ -208,10 +212,12 @@ class MainFrame(wx.Frame):
         self.l_currentmusic = wx.StaticText(rhs, label='Current music:')
         rsizer.Add(self.l_currentmusic, wx.SizerFlags().Border(wx.TOP | wx.LEFT))
 
-        self.current_contents = wx.ListCtrl(rhs, style=wx.LC_REPORT)
-        self.current_contents.AppendColumn('File name', wx.LIST_FORMAT_LEFT, wx.LIST_AUTOSIZE)
+        self.watch_song_data = []
+        self.music_objectid = None
+        self.lc_watch_contents = wx.ListCtrl(rhs, style=wx.LC_REPORT)
+        self.lc_watch_contents.AppendColumn('File name', wx.LIST_FORMAT_LEFT, wx.LIST_AUTOSIZE)
         rsizer.Add(
-            self.current_contents,
+            self.lc_watch_contents,
             wx.SizerFlags().Proportion(1).Expand().Border(wx.TOP | wx.LEFT | wx.RIGHT),
         )
 
@@ -249,11 +255,11 @@ class MainFrame(wx.Frame):
 
         if not self.have_watch:
             self.l_currentmusic.Hide()
-            self.current_contents.Hide()
+            self.lc_watch_contents.Hide()
             self.delete_sel.Hide()
         else:
             self.l_currentmusic.Show()
-            self.current_contents.Show()
+            self.lc_watch_contents.Show()
             self.delete_sel.Show()
 
         if not self.have_playlist or not self.have_watch:
@@ -312,11 +318,13 @@ class MainFrame(wx.Frame):
             startup_data = json.loads(self.proc.stdout.readline())
             self.base_url = 'http://127.0.0.1:%d/' % startup_data['port']
 
-    def daemon_request(self, target, callback):
+    def daemon_request(self, target, callback, method='GET'):
         self.ensure_daemon_running()
         # print('REQUEST: %s' % (self.base_url + target))
-        response = json.loads(urllib.request.urlopen(self.base_url + target).read())
-        wx.CallAfter(callback, response)
+        req = urllib.request.Request(url=self.base_url + target, method=method)
+        resp = json.loads(urllib.request.urlopen(req).read())
+        # print('RESPONSE: %s' % resp)
+        wx.CallAfter(callback, resp)
 
     def on_closed(self, event):
         self.proc.terminate()
@@ -351,9 +359,15 @@ class MainFrame(wx.Frame):
 
         if do_refresh:
             self.device_data = []
+            self.devindex = -1
+            self.devid_q = None
+            self.watch_song_data = []
+            self.music_objectid = None
+            self.lc_watch_contents.DeleteAllItems()
+
             while self.devices.GetCount():
                 self.devices.Delete(0)
-            self.current_contents.DeleteAllItems()
+
             if len(keep) == 0:
                 self.devices.SetItems(
                     [
@@ -371,11 +385,27 @@ class MainFrame(wx.Frame):
                 self.update_status(STATE_WATCH_CONNECTED, True)
 
     def on_device_selected(self, event):
-        self.select_device(event.GetInt())
+        index = event.GetInt()
+        if index < len(self.device_data):
+            self.select_device(index)
+
+    def refresh_device_contents(self):
+        self.select_device(self.devindex)  # Causes reload of contents
 
     def select_device(self, index):
-        devid = urllib.parse.quote(self.device_data[index]['id'])
-        self.daemon_request('bulk-properties/%s' % devid, self.update_current_music_list)
+        def bulk_get():
+            self.devindex = index
+            self.devid_q = urllib.parse.quote(self.device_data[index]['id'])
+            self.daemon_request('bulk-properties/%s' % self.devid_q, self.update_current_music_list)
+
+        self.lc_watch_contents.DeleteAllItems()
+        self.lc_watch_contents.Append(('Loading...',))
+        self.lc_watch_contents.SetColumnWidth(0, 200)
+        self.lc_watch_contents.Disable()
+
+        th = threading.Thread(target=bulk_get)
+        th.daemon = True
+        th.start()
 
     def find_single_node(self, data, parent, content_type, name=None):
         for n in data:
@@ -413,32 +443,135 @@ class MainFrame(wx.Frame):
         songs = self.find_all_nodes(
             data, parent=music['WPD_OBJECT_ID'], content_type=WPD_CONTENT_TYPE_AUDIO
         )
-        self.current_contents.DeleteAllItems()
+        self.music_objectid = music['WPD_OBJECT_ID']
+        self.watch_song_data = songs
+        self.lc_watch_contents.DeleteAllItems()
         for x in songs:
-            self.current_contents.Append((x.get('WPD_OBJECT_ORIGINAL_FILE_NAME'),))
-        self.current_contents.SetColumnWidth(0, wx.LIST_AUTOSIZE)
+            self.lc_watch_contents.Append((x.get('WPD_OBJECT_ORIGINAL_FILE_NAME'),))
+        self.lc_watch_contents.SetColumnWidth(0, wx.LIST_AUTOSIZE)
+        self.lc_watch_contents.Enable()
 
-    def cache_tracks(self, tracks):
-        dialog = wx.ProgressDialog(
+    def cache_tracks(self, tracks, rest):
+        self.cache_dialog = wx.ProgressDialog(
             'Downloading from YouTube...',
-            'Retrieving list of music from YouTube...',
+            'Retrieving music from YouTube...',
             len(tracks),
             parent=self,
+            style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE | wx.PD_CAN_ABORT,
         )
-        for i, t in enumerate(tracks):
-            dialog.Update(i + 1, t.title)
-            t.ensure_cached()
+
+        def cache():
+            want_abort = False
+            for i, t in enumerate(tracks):
+                if want_abort:
+                    break
+
+                def upd(index, title):
+                    nonlocal want_abort
+                    ret = self.cache_dialog.Update(index, title)
+                    if ret[0] == False:
+                        want_abort = True
+
+                t.ensure_cached()
+                wx.CallAfter(upd, i + 1, t.title)
+
+            wx.CallAfter(lambda: self.cache_dialog.Update(len(tracks)))
+            wx.CallAfter(lambda: self.cache_dialog.Destroy())
+
+            if not want_abort:
+                wx.CallAfter(rest, tracks)
+
+        th = threading.Thread(target=cache)
+        th.daemon = True
+        th.start()
+
+    def do_send(self, tracks):
+        self.send_dialog = wx.ProgressDialog(
+            'Uploading to watch...',
+            'Copying music to device...',
+            len(tracks),
+            parent=self,
+            style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE | wx.PD_CAN_ABORT,
+        )
+
+        def safer_name(name):
+            return re.sub(r'[\\/:"*?<>|]+', '', name)
+
+        def send():
+            want_abort = False
+            for i, t in enumerate(tracks):
+                if want_abort:
+                    break
+
+                def upd(index, title):
+                    nonlocal want_abort
+                    ret = self.send_dialog.Update(index, title)
+                    if ret[0] == False:
+                        want_abort = True
+
+                if os.path.isfile(t.local_file_name):
+                    objid_q = urllib.parse.quote(self.music_objectid)
+                    local_q = urllib.parse.quote(t.local_file_name)
+                    title_q = urllib.parse.quote(safer_name(t.title) + '.mp3')
+                    self.daemon_request(
+                        'send-file/%s?parentid=%s&localfilename=%s&targettitle=%s'
+                        % (self.devid_q, objid_q, local_q, title_q),
+                        lambda r: True,
+                        method='POST',
+                    )
+                    wx.CallAfter(upd, i + 1, t.title)
+                else:
+                    want_abort = True
+
+            wx.CallAfter(lambda: self.send_dialog.Update(len(tracks)))
+            wx.CallAfter(lambda: self.send_dialog.Destroy())
+
+            if not want_abort:
+                wx.CallAfter(self.refresh_device_contents)
+
+        th = threading.Thread(target=send)
+        th.daemon = True
+        th.start()
 
     def on_sync_selected(self, event):
         track_indices = self.album.get_selected_tracks()
         if track_indices:
-            self.cache_tracks([self.current_playlist.tracks[i] for i in track_indices])
+            self.cache_tracks(
+                [self.current_playlist.tracks[i] for i in track_indices], self.do_send
+            )
 
     def on_sync_all(self, event):
-        self.cache_tracks(self.current_playlist.tracks)
+        self.cache_tracks(self.current_playlist.tracks, self.do_send)
 
     def on_delete_selected(self, event):
-        wx.MessageBox('Delete')
+        if not self.devid_q or self.devindex < 0:
+            return
+
+        sel = []
+        i = self.lc_watch_contents.GetFirstSelected()
+        while i != -1:
+            sel.append(self.watch_song_data[i]['WPD_OBJECT_ID'])
+            i = self.lc_watch_contents.GetNextSelected(i)
+
+        def do_deletes():
+            count = [0]
+
+            def refresh_on_last(resp):
+                count[0] += 1
+                if count[0] == len(sel):
+                    self.refresh_device_contents()
+
+            for obj in sel:
+                quotedobj = urllib.parse.quote(obj)
+                self.daemon_request(
+                    'delete-object/%s?objectid=%s' % (self.devid_q, quotedobj),
+                    refresh_on_last,
+                    method='POST',
+                )
+
+        th = threading.Thread(target=do_deletes)
+        th.daemon = True
+        th.start()
 
 
 if __name__ == '__main__':

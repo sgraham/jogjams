@@ -7,54 +7,7 @@
 
 #include "stdafx.h"
 
-std::wstring multi2wide(const std::string& str, UINT codePage = CP_THREAD_ACP) {
-  if (str.empty()) {
-    return std::wstring();
-  }
 
-  int required =
-      ::MultiByteToWideChar(codePage, 0, str.data(), (int)str.size(), NULL, 0);
-  if (0 == required) {
-    return std::wstring();
-  }
-
-  std::wstring str2;
-  str2.resize(required);
-
-  int converted = ::MultiByteToWideChar(
-      codePage, 0, str.data(), (int)str.size(), &str2[0], (int)str2.capacity());
-  if (0 == converted) {
-    return std::wstring();
-  }
-
-  return str2;
-}
-
-std::string wide2utf8(const wchar_t* wide) {
-  int buf_size =
-      ::WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
-  std::string utf8(buf_size, '\0');
-  WideCharToMultiByte(CP_UTF8, 0, wide, -1, &utf8[0], buf_size, nullptr,
-                      nullptr);
-  utf8.resize(buf_size - 1);
-  return utf8;
-}
-
-std::string quoted_utf8(const WCHAR* str) {
-  std::string utf8 = wide2utf8(str);
-  std::string result("\"");
-  for (DWORD i = 0; i < utf8.size(); ++i) {
-    if (utf8[i] == '\"') {
-      result += "\\\"";
-    } else if (utf8[i] == '\\') {
-      result += "\\\\";
-    } else {
-      result += utf8[i];
-    }
-  }
-  result += "\"";
-  return result;
-}
 
 //<SnippetDeviceEnum6>
 #define CLIENT_NAME L"Windows"
@@ -254,12 +207,7 @@ std::string EnumerateAllDevices(DWORD* device_id_count) {
         // manufacturer, and description strings.
         for (DWORD index = 0; index < retrievedDeviceIDCount; index++) {
           result += "  {\n";
-          result += "    \"index\": ";
-          std::stringstream ss;
-          ss << index;
-          result += ss.str();
-          result += ",\n";
-
+          result += "    \"index\": " + int_to_str(index) + ",\n";
           result += "    \"id\": " + quoted_utf8(pnpDeviceIDs[index]) + ",\n";
           result +=
               DisplayFriendlyName(deviceManager.Get(), pnpDeviceIDs[index]);
@@ -397,13 +345,13 @@ void ChooseDevice(std::string device_id, _Outptr_result_maybenull_ IPortableDevi
                           IID_PPV_ARGS(device));
     if (SUCCEEDED(hr))
     {
-        hr = (*device)->Open(multi2wide(device_id).c_str(), clientInformation.Get());
+        hr = (*device)->Open(utf8_to_wide(device_id).c_str(), clientInformation.Get());
 
         if (hr == E_ACCESSDENIED)
         {
             fwprintf(stderr, L"Failed to Open the device for Read Write access, will open it for Read-only access instead\n");
             clientInformation->SetUnsignedIntegerValue(WPD_CLIENT_DESIRED_ACCESS, GENERIC_READ);
-            hr = (*device)->Open(multi2wide(device_id).c_str(), clientInformation.Get());
+            hr = (*device)->Open(utf8_to_wide(device_id).c_str(), clientInformation.Get());
         }
 
         if (FAILED(hr))
