@@ -1,8 +1,5 @@
 ## v1
 
-- delete button
-- sync button
-- better progress dialogs
 - pyinstaller
 - pyupdater
   - jogjams.com/api/check-update with version/key/log and returns update if any
