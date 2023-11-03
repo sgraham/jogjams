@@ -4,3 +4,6 @@ wpd-mtp-helper/x64/
 scratch/
 cache/
 __pycache__/
+jogjams.spec
+dist/
+build/
