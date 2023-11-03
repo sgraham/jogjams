@@ -431,7 +431,8 @@ class MainFrame(wx.Frame):
 
     def on_sync_selected(self, event):
         track_indices = self.album.get_selected_tracks()
-        self.cache_tracks([self.current_playlist.tracks[i] for i in track_indices])
+        if track_indices:
+            self.cache_tracks([self.current_playlist.tracks[i] for i in track_indices])
 
     def on_sync_all(self, event):
         self.cache_tracks(self.current_playlist.tracks)
