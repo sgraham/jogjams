@@ -2,7 +2,6 @@
 
 ## v1
 
-- suggestion urls when no valid url
 - rip obvious junk out of wpd-mtp-hlper
 - find users
 

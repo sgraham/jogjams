@@ -29,6 +29,7 @@ import threading
 import time
 import urllib.request
 import wx
+import wx.adv
 import yt_dlp
 
 WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT = '{99ED0160-17FF-4C44-9D98-1D7A6F941921}'
@@ -172,6 +173,41 @@ class AlbumDisplay(wx.Panel):
             item = self.tracks.GetNextSelected(item)
         return result
 
+class HelpPane(wx.Panel):
+    def __init__(self, playlist_url, *args, **kw):
+        super(HelpPane, self).__init__(*args, **kw)
+
+        self.playlist_url = playlist_url
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        l_help0 = wx.StaticText(self, label='If you have your own playlist handy, paste it above to get started.')
+        sizer.Add(l_help0, wx.SizerFlags().DoubleBorder(wx.ALL).Expand())
+
+        l_help1 = wx.StaticText(self, label='Or, try one of these examples:')
+        sizer.Add(l_help1, wx.SizerFlags().DoubleBorder(wx.LEFT | wx.TOP).Expand())
+
+        ex0 = wx.adv.HyperlinkCtrl(self, label='Running Tracks', url=r'https://music.youtube.com/playlist?list=RDCLAK5uy_m2DbXGr69B7FSL6LqEHjdEFsxTmghY4Qw')
+        ex0.Bind(wx.adv.EVT_HYPERLINK, self.on_click)
+        sizer.Add(ex0, wx.SizerFlags().DoubleBorder(wx.LEFT | wx.TOP).Expand())
+
+        ex1 = wx.adv.HyperlinkCtrl(self, label='Marathoners Rocking New York', url=r'https://music.youtube.com/playlist?list=OLAK5uy_l-ZRBmH_xVHk7t1JJgadh41JDyTONLzjE')
+        ex1.Bind(wx.adv.EVT_HYPERLINK, self.on_click)
+        sizer.Add(ex1, wx.SizerFlags().DoubleBorder(wx.LEFT | wx.TOP).Expand())
+
+        ex2 = wx.adv.HyperlinkCtrl(self, label='Euphoric Running Tracks', url='https://music.youtube.com/playlist?list=RDCLAK5uy_mVuA6l3MZFkCMtL1kWMnvBw6c3YaTCytU')
+        ex2.Bind(wx.adv.EVT_HYPERLINK, self.on_click)
+        sizer.Add(ex2, wx.SizerFlags().DoubleBorder(wx.LEFT | wx.TOP).Expand())
+
+        ex3 = wx.adv.HyperlinkCtrl(self, label='Rock & Run!', url='https://music.youtube.com/playlist?list=RDCLAK5uy_mx8e76iA69eSkgLpj_oxbrgchR0I5Fa1U')
+        ex3.Bind(wx.adv.EVT_HYPERLINK, self.on_click)
+        sizer.Add(ex3, wx.SizerFlags().DoubleBorder(wx.LEFT | wx.TOP).Expand())
+
+        self.SetSizer(sizer)
+
+    def on_click(self, event):
+        self.playlist_url.SetValue(event.GetURL())
+
 
 class MainFrame(wx.Frame):
     def __init__(self, *args, **kw):
@@ -204,13 +240,11 @@ class MainFrame(wx.Frame):
 
         self.playlist_url = wx.TextCtrl(lhs)
         lsizer.Add(self.playlist_url, wx.SizerFlags().Border(wx.LEFT | wx.RIGHT).Expand())
-        self.playlist_url.SetValue(
-            'https://music.youtube.com/playlist?list=RDCLAK5uy_m2DbXGr69B7FSL6LqEHjdEFsxTmghY4Qw'  # Running Tracks
-            #'https://music.youtube.com/playlist?list=OLAK5uy_l-ZRBmH_xVHk7t1JJgadh41JDyTONLzjE' # Southpaw
-            #'https://music.youtube.com/playlist?list=OLAK5uy_lLTN5rDT7EE5e7FuJEtkum7V-y4ATo3mM'
-        )
         self.playlist_url.Bind(wx.EVT_SET_FOCUS, self.highlight_url)
         self.playlist_url.Bind(wx.EVT_TEXT, self.refresh_playlist)
+
+        self.help = HelpPane(parent=lhs, playlist_url=self.playlist_url)
+        lsizer.Add(self.help, wx.SizerFlags().Proportion(1).Expand())
 
         self.album = AlbumDisplay(lhs)
         lsizer.Add(self.album, wx.SizerFlags().Proportion(1).Expand())
@@ -284,7 +318,9 @@ class MainFrame(wx.Frame):
 
         if not self.have_playlist:
             self.album.Hide()
+            self.help.Show()
         else:
+            self.help.Hide()
             self.album.Show()
 
         if not self.have_watch:
