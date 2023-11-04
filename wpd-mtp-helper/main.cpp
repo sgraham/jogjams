@@ -359,13 +359,15 @@ void DoCommandLoop()
     CoTaskMemFree(eventCookie);
 }
 
-#if 1
+#if 0
 int main(int, char**) {
 #else
 int WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 #endif
     // Enable the heap manager to terminate the process on heap error.
     HeapSetInformation(nullptr, HeapEnableTerminationOnCorruption, nullptr, 0);
+
+    fwprintf(stderr, L"wpd-mtp-helper started, command line \"%s\"\n", GetCommandLineW());
 
     int argc;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);

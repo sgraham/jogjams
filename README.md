@@ -1,14 +1,10 @@
 ## v1
 
-- pyinstaller
 - pyupdater
   - jogjams.com/api/check-update with version/key/log and returns update if any
-- no consoles
-- redirect all logs
 - rip obvious junk out of wpd-mtp-hlper
 - find users
 - ERRORs from yt_dlp are a bit janky, probably just wrap generically and log
-- cache to USERAPPDIR or wherever it's supposed to be
 - suggestion urls when no valid url
 
 ## v2

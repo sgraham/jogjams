@@ -131,7 +131,7 @@
       <AdditionalOptions>/NXCOMPAT %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>ShlWapi.lib;PortableDeviceGuids.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <DataExecutionPrevention />
       <TargetMachine>MachineX64</TargetMachine>
@@ -181,7 +181,7 @@ copy $(TargetPath) $(SolutionDir)..\bin</Command>
       <AdditionalOptions>/NXCOMPAT %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>ShlWapi.lib;PortableDeviceGuids.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>

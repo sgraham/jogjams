@@ -2,15 +2,27 @@ import ctypes
 
 ctypes.windll.shcore.SetProcessDpiAwareness(True)
 
-import os
+import ensuredirs
+LOGDIR = ensuredirs.LOGDIR
+CACHEDIR = ensuredirs.CACHEDIR
 
+
+import os
 SELFDIR = os.path.abspath(os.path.dirname(__file__))
-CACHEDIR = os.path.join(SELFDIR, 'cache')  # TODO: USERAPPDATA or something
+
+import logging
+
+logging.basicConfig(
+    format='%(asctime)s:%(levelname)s:%(message)s',
+    level=logging.DEBUG,
+    filename=os.path.join(LOGDIR, 'jogjams.log'),
+    encoding='utf-8',
+)
+
 
 import json
 import localcache
 import os
-import pprint
 import re
 import subprocess
 import threading
@@ -25,6 +37,28 @@ WPD_CONTENT_TYPE_AUDIO = '{4AD2C85E-5E2D-45E5-8864-4F229E3C6CF0}'
 
 STATE_PLAYLIST_LOADED = 0
 STATE_WATCH_CONNECTED = 1
+
+
+class LogPipe(threading.Thread):
+    def __init__(self, level):
+        threading.Thread.__init__(self)
+        self.daemon = False
+        self.level = level
+        self.fd_read, self.fd_write = os.pipe()
+        self.pipe_reader = os.fdopen(self.fd_read)
+        self.start()
+
+    def fileno(self):
+        return self.fd_write
+
+    def run(self):
+        for line in iter(self.pipe_reader.readline, ''):
+            logging.log(self.level, line.strip('\n'))
+
+        self.pipe_reader.close()
+
+    def close(self):
+        os.close(self.fd_write)
 
 
 class ProportionalSplitter(wx.SplitterWindow):
@@ -187,13 +221,13 @@ class MainFrame(wx.Frame):
         self.go_sel = wx.Button(pair)
         self.go_sel.SetLabel('Copy selected tracks to watch ' + '➤')
         self.go_sel.Bind(wx.EVT_BUTTON, self.on_sync_selected)
-        pairsizer.Add(self.go_sel, wx.SizerFlags().Border(wx.ALL))
+        pairsizer.Add(self.go_sel, wx.SizerFlags().Border(wx.ALL).ReserveSpaceEvenIfHidden())
         self.go_sel.Hide()
 
         self.go_all = wx.Button(pair)
         self.go_all.SetLabel('Copy whole playlist to watch ' + '➤➤➤')
         self.go_all.Bind(wx.EVT_BUTTON, self.on_sync_all)
-        pairsizer.Add(self.go_all, wx.SizerFlags().Border(wx.ALL))
+        pairsizer.Add(self.go_all, wx.SizerFlags().Border(wx.ALL).ReserveSpaceEvenIfHidden())
         self.go_all.Hide()
 
         pair.SetSizer(pairsizer)
@@ -314,16 +348,20 @@ class MainFrame(wx.Frame):
     def ensure_daemon_running(self):
         if not self.proc or self.proc.poll() is not None:
             torun = os.path.join(SELFDIR, 'bin', 'wpd-mtp-helper.exe')
-            self.proc = subprocess.Popen([torun, '--daemon'], stdout=subprocess.PIPE)
+            logpipe = LogPipe(logging.INFO)
+            self.proc = subprocess.Popen(
+                [torun, '--daemon'], stdout=subprocess.PIPE, stderr=logpipe
+            )
+            logpipe.close()
             startup_data = json.loads(self.proc.stdout.readline())
             self.base_url = 'http://127.0.0.1:%d/' % startup_data['port']
 
     def daemon_request(self, target, callback, method='GET'):
         self.ensure_daemon_running()
-        # print('REQUEST: %s' % (self.base_url + target))
+        # logging.debug('REQUEST: %s' % (self.base_url + target))
         req = urllib.request.Request(url=self.base_url + target, method=method)
         resp = json.loads(urllib.request.urlopen(req).read())
-        # print('RESPONSE: %s' % resp)
+        # logging.debug('RESPONSE: %s' % resp)
         wx.CallAfter(callback, resp)
 
     def on_closed(self, event):
@@ -344,7 +382,7 @@ class MainFrame(wx.Frame):
         return '%s (%s)' % (d['friendly'], d['manufacturer'])
 
     def update_retrieved_list(self, data):
-        # print(data)
+        # logging.debug(data)
         keep = [x for x in data if x['manufacturer'] == 'Garmin']
         do_refresh = len(keep) == 0
         if len(keep) == self.devices.GetCount():
@@ -498,6 +536,10 @@ class MainFrame(wx.Frame):
             return re.sub(r'[\\/:"*?<>|]+', '', name)
 
         def send():
+            if not self.music_objectid:
+                logging.error('no music object, aborting')
+                return
+
             want_abort = False
             for i, t in enumerate(tracks):
                 if want_abort:
@@ -581,6 +623,6 @@ if __name__ == '__main__':
     frm = MainFrame(None, title='Jog Jams')
     frm.SetSize(frm.FromDIP(wx.Size(1200, 800)))
     frm.SetMinSize(frm.FromDIP(wx.Size(800, 600)))
-    frm.SetIcon(wx.Icon('logo2-32.png'))
+    frm.SetIcon(wx.Icon(os.path.join(SELFDIR, 'logo2-32.png')))
     frm.Show()
     app.MainLoop()

@@ -1,9 +1,12 @@
+import logging
 import os
+import ensuredirs
+import platformdirs
 import urllib.request
 import yt_dlp
 
 SELFDIR = os.path.abspath(os.path.dirname(__file__))
-CACHEDIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'cache'))
+CACHEDIR = ensuredirs.CACHEDIR
 
 ydl_opts = {
     'ffmpeg_location': os.path.join(SELFDIR, 'bin', 'ffmpeg'),
@@ -18,6 +21,7 @@ ydl_opts = {
     'overwrites': False,
     'download_archive': os.path.join(CACHEDIR, 'archive.dat'),
     'color': 'never',
+    'logger': logging.getLogger(),
 }
 
 
@@ -67,18 +71,20 @@ class PlaylistInfo:
                         f.write(urllib.request.urlopen(thumb_url).read())
             return PlaylistInfo(info['id'], info['title'], info['original_url'], thumb_fn, tracks)
 
+
 def main():
     URL = 'https://music.youtube.com/playlist?list=OLAK5uy_lLTN5rDT7EE5e7FuJEtkum7V-y4ATo3mM'
     pi = PlaylistInfo.create(URL)
     print(pi.id)
     print(pi.title)
     print(pi.url)
-    for i,t in enumerate(pi.tracks):
+    for i, t in enumerate(pi.tracks):
         print(i, t.id)
         print(i, t.title)
         print(i, t.url)
         print(i, t.duration)
-        print("ensure_cached:", t.ensure_cached())
+        print('ensure_cached:', t.ensure_cached())
+
 
 if __name__ == '__main__':
     main()
