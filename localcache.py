@@ -2,7 +2,7 @@ import logging
 import os
 import ensuredirs
 import platformdirs
-import urllib.request
+import requests
 import yt_dlp
 
 SELFDIR = os.path.abspath(os.path.dirname(__file__))
@@ -66,9 +66,16 @@ class PlaylistInfo:
                 thumb_fn = os.path.join(CACHEDIR, 'thumb', info['id'] + '.jpg')
                 if not os.path.isdir(os.path.dirname(thumb_fn)):
                     os.makedirs(os.path.dirname(thumb_fn))
+                logging.debug('thumbnail local file: %s' % thumb_fn)
                 if not os.path.exists(thumb_fn):
-                    with open(thumb_fn, 'wb') as f:
-                        f.write(urllib.request.urlopen(thumb_url).read())
+                    logging.info('getting thumbnail from: %s' % thumb_url)
+                    try:
+                        with open(thumb_fn, 'wb') as f:
+                            # requests works when urllib.request didn't on old win10 (1607ish)
+                            f.write(requests.get(thumb_url).content)
+                    except e:
+                        logging.error(e)
+                        os.unlink(thumb_fn)
             return PlaylistInfo(info['id'], info['title'], info['original_url'], thumb_fn, tracks)
 
 

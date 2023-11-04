@@ -1,22 +1,33 @@
+# Jog Jams
+
 ## v1
 
-- pyupdater
-  - jogjams.com/api/check-update with version/key/log and returns update if any
-- pyinstaller icon
+- suggestion urls when no valid url
 - rip obvious junk out of wpd-mtp-hlper
 - find users
-- crashes on shutdown in w10 1607 vm
-- ERRORs from yt_dlp are a bit janky, probably just wrap generically and log
-- suggestion urls when no valid url
 
 ## v2
 
-- jogjams.key by email for payment
+- ERRORs from yt_dlp are a bit janky, maybe just wrap generically and log
+- crashes on shutdown in w10 1607 vm?
 - log into ytm to select playlists more nicely than c&p
 - save recent playlists (just name+url in list?)
 - jogjams.key by email for payment
 
-## v-future
+### updater
+- pyupdater
+  - jogjams.com/api/check-update with version/key/log and returns update if any
+  - seems janky and is unmaintained
+
+- at startup, start thread that queries server with version for "should i
+  update"?
+- if so downloads to LOCALAPPDATA\Application\
+  - make a jogjamssetup like chrome?
+  - make entry point autoget if frozen and switcheroo o
+  exit?
+
+
+## v3+
 
 - watch app for wireless sync
 - coros support
