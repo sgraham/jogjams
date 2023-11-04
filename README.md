@@ -2,8 +2,10 @@
 
 - pyupdater
   - jogjams.com/api/check-update with version/key/log and returns update if any
+- pyinstaller icon
 - rip obvious junk out of wpd-mtp-hlper
 - find users
+- crashes on shutdown in w10 1607 vm
 - ERRORs from yt_dlp are a bit janky, probably just wrap generically and log
 - suggestion urls when no valid url
 
