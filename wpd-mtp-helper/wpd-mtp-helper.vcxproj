@@ -176,6 +176,7 @@ copy $(TargetPath) $(SolutionDir)..\bin</Command>
       <PrecompiledHeader>Create</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
     <Link>
       <AdditionalOptions>/NXCOMPAT %(AdditionalOptions)</AdditionalOptions>
@@ -188,6 +189,7 @@ copy $(TargetPath) $(SolutionDir)..\bin</Command>
       <DataExecutionPrevention />
       <TargetMachine>MachineX64</TargetMachine>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <PostBuildEvent>
       <Command>taskkill /IM $(TargetFileName) /F &gt;nul 2&gt;nul
